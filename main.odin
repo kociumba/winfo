@@ -1,14 +1,14 @@
 package winfo
 
+import client "./odin-http/client"
 import "core:fmt"
+import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "core:sync"
 import win "core:sys/windows"
 import "core:thread"
 import rl "vendor:raylib"
-import "core:path/filepath"
-import "core:os"
-import client "./odin-http/client"
 
 log_err :: proc(msg: cstring, args: ..any) {
 	rl.TraceLog(rl.TraceLogLevel.ERROR, msg, args)
@@ -19,25 +19,37 @@ log_info :: proc(msg: cstring, args: ..any) {
 }
 
 State :: struct {
-	click_point:     win.POINT,
-	did_click:       bool,
-	window_title:    string,
-	window_class:    string,
-	window_info:     win.WINDOWINFO,
-	winfo_font:      rl.Font,
-	window_position: rl.Vector2,
-	window_width:    i32,
-	window_height:   i32,
-	mouse_position:  rl.Vector2,
-	pan_offset:      rl.Vector2,
-	drag_window:     bool,
-	frames:          int,
+	click_point:         win.POINT,
+	did_click:           bool,
+	window_title:        string,
+	window_class:        string,
+	window_info:         win.WINDOWINFO,
+	target_hwnd:         win.HWND,
+	winfo_font:          rl.Font,
+	window_position:     rl.Vector2,
+	window_width:        i32,
+	window_height:       i32,
+	main_hwnd:           win.HWND,
+	mouse_position:      rl.Vector2,
+	pan_offset:          rl.Vector2,
+	drag_window:         bool,
+	frames:              int,
+	last_click_pos:      rl.Vector2,
+	copied_text:         string,
+	copy_feedback_timer: f32,
+	// ui strings
+	decoded_style:       string,
+	decoded_ex_style:    string,
+	handle_text:         string,
+	rect_info:           string,
+	client_info:         string,
+	border_info:         string,
 }
 
 s := State {
 	did_click     = false,
-	window_width  = 400,
-	window_height = 400,
+	window_width  = 500,
+	window_height = 500,
 	pan_offset    = rl.GetMousePosition(),
 }
 
@@ -78,31 +90,48 @@ main :: proc() {
 
 	get_window_info(s.click_point)
 
-    // get_file("https://www.google.com/", "test/test.html") // tests the http get request
+	// get_file("https://www.google.com/", "test/test.html") // tests the http get request
 
 	rl.SetConfigFlags(rl.ConfigFlags{.WINDOW_UNDECORATED, .WINDOW_TRANSPARENT, .WINDOW_TOPMOST})
 	rl.InitWindow(s.window_width, s.window_height, "winfo")
-	defer rl.CloseWindow()
+	defer {
+		if len(s.decoded_style) > 0 do delete(s.decoded_style)
+		if len(s.decoded_ex_style) > 0 do delete(s.decoded_ex_style)
+		if len(s.handle_text) > 0 do delete(s.handle_text)
+		if len(s.rect_info) > 0 do delete(s.rect_info)
+		if len(s.client_info) > 0 do delete(s.client_info)
+		if len(s.border_info) > 0 do delete(s.border_info)
+		rl.CloseWindow()
+	}
 	rl.SetWindowState(rl.ConfigFlags{.WINDOW_UNDECORATED, .WINDOW_TRANSPARENT, .WINDOW_TOPMOST})
 	s.window_position = rl.GetWindowPosition()
 	rl.SetTargetFPS(144)
 	rl.SetWindowPosition(s.window_info.rcClient.left, s.window_info.rcClient.top)
-	get_file("github/link", "assets/dark.rgs")
+	get_file(
+		"https://github.com/kociumba/winfo/raw/refs/heads/main/assets/dark.rgs",
+		"assets/dark.rgs",
+	)
 	rl.GuiLoadStyle("assets/dark.rgs")
 
-	get_file("gihub/link", "assets/BaiJamjuree-Regular.ttf")
+	get_file(
+		"https://github.com/kociumba/winfo/raw/refs/heads/main/assets/BaiJamjuree-Regular.ttf",
+		"assets/BaiJamjuree-Regular.ttf",
+	)
 	s.winfo_font = rl.LoadFontEx("assets/BaiJamjuree-Regular.ttf", 32, nil, 250)
 	defer rl.UnloadFont(s.winfo_font)
 
-	main_hwnd := getWindowFromPoint(
+	s.main_hwnd = getWindowFromPoint(
 		win.POINT{s.window_info.rcClient.left + 1, s.window_info.rcClient.top + 1},
 	)
 
-	fmt.println(main_hwnd)
+	// fmt.println(main_hwnd)
+
+	// init_window_info_strings()
 
 	main_loop: for !rl.WindowShouldClose() {
 		if s.frames == 1 {
 			rl.SetWindowPosition(s.window_info.rcClient.left, s.window_info.rcClient.top)
+            init_window_info_strings()
 		}
 
 		rl.BeginDrawing()
@@ -143,36 +172,36 @@ drag :: proc() {
 
 // get's a file from github repo, couse i don't want to package it
 get_file :: proc(from, to: string) {
-    abs, _ := filepath.abs(to)
-    if !os.exists(abs) {
-        if os.make_directory(filepath.dir(abs)) != nil {
-            log_err("failed to create dir: %s", strings.clone_to_cstring(filepath.dir(abs)))
-        }
+	abs, _ := filepath.abs(to)
+	if !os.exists(abs) {
+		if os.make_directory(filepath.dir(abs)) != nil {
+			log_err("failed to create dir: %s", strings.clone_to_cstring(filepath.dir(abs)))
+		}
 
-        res, err := client.get(from)
-        if err != nil {
-            log_err("failed to get resource from: %s", strings.clone_to_cstring(from))
-            return
-        }
-        defer client.response_destroy(&res)
+		res, err := client.get(from)
+		if err != nil {
+			log_err("failed to get resource from: %s", strings.clone_to_cstring(from))
+			return
+		}
+		defer client.response_destroy(&res)
 
-        body, allocation, berr := client.response_body(&res)
-        if berr != nil {
-            log_err("failed to get response body")
-            return
-        }
-        defer client.body_destroy(body, allocation)
+		body, allocation, berr := client.response_body(&res)
+		if berr != nil {
+			log_err("failed to get response body")
+			return
+		}
+		defer client.body_destroy(body, allocation)
 
-        f, ferr := os.open(abs, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
-        if ferr != nil {
-            log_err("failed to create final file")
-        }
-        defer os.close(f)
+		f, ferr := os.open(abs, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+		if ferr != nil {
+			log_err("failed to create final file")
+		}
+		defer os.close(f)
 
 		_, werr := os.write(f, transmute([]u8)fmt.aprint(body))
-        if werr != nil {
-            log_err("error writing the data to file")
-            return
-        }
-    }
+		if werr != nil {
+			log_err("error writing the data to file")
+			return
+		}
+	}
 }

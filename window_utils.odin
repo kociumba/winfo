@@ -10,10 +10,12 @@ import "core:reflect"
 foreign import winfo_utils "winfo_utils.lib"
 foreign winfo_utils {
     getWindowFromPoint :: proc(point: win.POINT) -> win.HWND ---
+    setClipboardText :: proc(text: [^]win.WCHAR, hwnd: win.HWND) -> win.BOOL ---
 }
 
 get_window_info :: proc(point: win.POINT) {
     hwnd := getWindowFromPoint(s.click_point)
+    s.target_hwnd = hwnd
 
     if hwnd != nil {
         title_buffer: [256]win.WCHAR
@@ -37,9 +39,9 @@ get_window_info :: proc(point: win.POINT) {
         }
         s.window_info = info_buffer^
 
-        fmt.println(info_buffer)
+        // fmt.println(info_buffer)
 
-        log_info(strings.clone_to_cstring(fmt.aprint(s)))
+        // log_info(strings.clone_to_cstring(fmt.aprint(s)))
     } else {
         log_err("no window found at click point")
     }
