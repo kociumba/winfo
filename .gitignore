@@ -1,0 +1,4 @@
+*.exe
+*.lib
+*.res
+build.cmd
