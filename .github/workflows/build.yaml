@@ -1,0 +1,26 @@
+name: build
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: mlugg/setup-zig@v1
+    - uses: laytan/setup-odin@v2.9.1
+    - uses: ilammy/msvc-dev-cmd@v1
+    - uses: leafo/gh-actions-lua@v11
+
+    - name: build
+      run: lua ${{ github.workspace }}/build.lua
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: winfo-build-${{ github.sha }}
+        path: ${{ github.workspace }}/winfo.exe

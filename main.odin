@@ -92,7 +92,15 @@ main :: proc() {
 
 	// get_file("https://www.google.com/", "test/test.html") // tests the http get request
 
-	rl.SetConfigFlags(rl.ConfigFlags{.WINDOW_UNDECORATED, .WINDOW_TRANSPARENT, .WINDOW_TOPMOST})
+	rl.SetConfigFlags(
+		rl.ConfigFlags {
+			.WINDOW_UNDECORATED,
+			.WINDOW_TRANSPARENT,
+			.WINDOW_TOPMOST,
+			.MSAA_4X_HINT,
+			.WINDOW_HIGHDPI,
+		},
+	)
 	rl.InitWindow(s.window_width, s.window_height, "winfo")
 	defer {
 		if len(s.decoded_style) > 0 do delete(s.decoded_style)
@@ -103,7 +111,15 @@ main :: proc() {
 		if len(s.border_info) > 0 do delete(s.border_info)
 		rl.CloseWindow()
 	}
-	rl.SetWindowState(rl.ConfigFlags{.WINDOW_UNDECORATED, .WINDOW_TRANSPARENT, .WINDOW_TOPMOST})
+	rl.SetWindowState(
+		rl.ConfigFlags {
+			.WINDOW_UNDECORATED,
+			.WINDOW_TRANSPARENT,
+			.WINDOW_TOPMOST,
+			.MSAA_4X_HINT,
+			.WINDOW_HIGHDPI,
+		},
+	)
 	s.window_position = rl.GetWindowPosition()
 	rl.SetTargetFPS(144)
 	rl.SetWindowPosition(s.window_info.rcClient.left, s.window_info.rcClient.top)
@@ -131,7 +147,7 @@ main :: proc() {
 	main_loop: for !rl.WindowShouldClose() {
 		if s.frames == 1 {
 			rl.SetWindowPosition(s.window_info.rcClient.left, s.window_info.rcClient.top)
-            init_window_info_strings()
+			init_window_info_strings()
 		}
 
 		rl.BeginDrawing()
